@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { createClient, getAllClients ,updateClient, deleteClient} = require('../controllers/adminController');
+const { createClient, getAllClients ,updateClient, deleteClient,dashboard} = require('../controllers/adminController');
 const { addProduct } = require('../controllers/productController');
 const { protect, admin } = require('../middleware/authMiddleware');
 const { createAgent, getAllAgents, deleteAgentByEmail ,updateAgent} = require("../controllers/agentController");
@@ -40,5 +40,7 @@ router.delete("/category/all/:id", protect, deleteCategory);
 router.post('/sales/add', protect, admin, createSale);
 router.get('/sales/history', protect, admin, getSalesHistory);
 
+
+router.get("/dashboard-stats",dashboard)
 
 module.exports = router;

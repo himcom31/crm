@@ -149,3 +149,64 @@ exports.deleteClient = async (req, res) => {
         res.status(500).json({ success: false, message: "Error deleting client" });
     }
 };
+
+exports.dashboard=async (req, res) => {
+try {
+    // 1. Total Pipeline (Sum of totalAmount)
+    const totalSales = await Sales.aggregate([
+      { 
+        $group: { 
+          _id: null, 
+          total: { $sum: "$totalAmount" } 
+        } 
+      }
+    ]);
+console.log("Step 1 (Total) Success:", totalSales);
+    // 2. Monthly Data (Date extraction fix)
+    const monthlyRevenue = await Sales.aggregate([
+      {
+        $group: {
+          _id: { $month: "$investmentDate" }, // MongoDB dates automatically handle $date objects
+          revenue: { $sum: "$totalAmount" }
+        }
+      },
+      { $sort: { "_id": 1 } }
+    ]);
+    console.log("Step 2 (Monthly) Success:", monthlyRevenue);
+
+    // 3. Top Agents (Field name 'agent' use kiya hai jo aapke data mein hai)
+    const topAgents = await Sales.aggregate([
+      {
+        $group: {
+          _id: "$agent", // Aapke data mein field ka naam 'agent' hai
+          revenue: { $sum: "$totalAmount" },
+          deals: { $sum: 1 }
+        }
+      },
+      // Important: Check karein ki agents collection ka naam 'agents' hi hai
+      { $lookup: { from: "agents", localField: "_id", foreignField: "_id", as: "agentData" } },
+      { $unwind: "$agentData" },
+      { $sort: { revenue: -1 } },
+      { $limit: 5 }
+    ]);
+    console.log("Step 3 (Agents) Success");
+
+    // Sabse zaroori: Response ko hamesha empty array ke saath bhejien agar data na mile
+    res.json({
+      pipeline: totalSales[0]?.total || 0,
+      chartData: monthlyRevenue.map(item => ({
+        name: `Month ${item._id}`, // X-Axis ke liye
+        revenue: item.revenue
+      })),
+      agents: topAgents.map(a => ({
+        name: a.agentData.name,
+        revenue: a.revenue,
+        deals: a.deals
+      }))
+    });
+
+  } catch (err) {
+    console.error("Dashboard Error Details:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+}

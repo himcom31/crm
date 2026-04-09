@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 
 exports.login = async (req, res) => {
     const { email, password, role } = req.body;
+    //console.log("Login Attempt:", { email, role,password }); // Terminal mein check karein
     try {
         // 1. Check user exists with the specific role
         const user = await User.findOne({ email, role });
