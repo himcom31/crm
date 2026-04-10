@@ -1,6 +1,10 @@
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const sendEmail = require('../utils/sendEmail');
+// adminController.js ke top par ye add karein
+const Sales = require('../models/Sale'); // Path check kar lein ki aapka Sales model kahan hai
+//const User = require('../models/User');   // Agar User ka bhi error aaye toh ise bhi add karein
+ const Agent=require('../models/Agent');
 
 // @desc    Create a new client & send credentials via email
 // @route   POST /api/admin/create-client
@@ -150,9 +154,9 @@ exports.deleteClient = async (req, res) => {
     }
 };
 
-exports.dashboard=async (req, res) => {
-try {
-    // 1. Total Pipeline (Sum of totalAmount)
+exports.dashboard = async (req, res) => {
+  try {
+    // 1. Total Gross Revenue (Sum of totalAmount from Sales)
     const totalSales = await Sales.aggregate([
       { 
         $group: { 
@@ -161,41 +165,50 @@ try {
         } 
       }
     ]);
-console.log("Step 1 (Total) Success:", totalSales);
-    // 2. Monthly Data (Date extraction fix)
+
+    // 2. Total Agents Count (Role base filter)
+    // Maan lete hain ki aapka Agent data 'User' model mein 'role' field ke saath hai
+    const totalAgents = await Agent.countDocuments();
+
+    // 3. Total Clients Count
+    const totalClients = await User.countDocuments({role:'client'}); // 'Client' aapka model name hai
+
+    // 4. Monthly Revenue Data (Graph ke liye)
     const monthlyRevenue = await Sales.aggregate([
       {
         $group: {
-          _id: { $month: "$investmentDate" }, // MongoDB dates automatically handle $date objects
+          _id: { $month: "$investmentDate" },
           revenue: { $sum: "$totalAmount" }
         }
       },
       { $sort: { "_id": 1 } }
     ]);
-    console.log("Step 2 (Monthly) Success:", monthlyRevenue);
 
-    // 3. Top Agents (Field name 'agent' use kiya hai jo aapke data mein hai)
+    // Month names array for cleaner Graph Labels
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+    // 5. Top Agents Ranking
     const topAgents = await Sales.aggregate([
       {
         $group: {
-          _id: "$agent", // Aapke data mein field ka naam 'agent' hai
+          _id: "$agent", 
           revenue: { $sum: "$totalAmount" },
           deals: { $sum: 1 }
         }
       },
-      // Important: Check karein ki agents collection ka naam 'agents' hi hai
       { $lookup: { from: "agents", localField: "_id", foreignField: "_id", as: "agentData" } },
       { $unwind: "$agentData" },
       { $sort: { revenue: -1 } },
       { $limit: 5 }
     ]);
-    console.log("Step 3 (Agents) Success");
 
-    // Sabse zaroori: Response ko hamesha empty array ke saath bhejien agar data na mile
+    // Final Response sending all 3 card values
     res.json({
-      pipeline: totalSales[0]?.total || 0,
+      totalRevenue: totalSales[0]?.total || 0,
+      totalAgents: totalAgents || 0,
+      totalClients: totalClients || 0,
       chartData: monthlyRevenue.map(item => ({
-        name: `Month ${item._id}`, // X-Axis ke liye
+        name: monthNames[item._id - 1], // "Month 1" ki jagah "Jan" dikhega
         revenue: item.revenue
       })),
       agents: topAgents.map(a => ({
@@ -209,4 +222,20 @@ console.log("Step 1 (Total) Success:", totalSales);
     console.error("Dashboard Error Details:", err);
     res.status(500).json({ success: false, message: err.message });
   }
-}
+};
+
+// Get Logged-in Admin Profile
+exports.getAdminProfile = async (req, res) => {
+  try {
+    // req.user.id from authMiddleware s=
+    const admin = await User.findById(req.user.id).select('-password'); 
+    
+    if (!admin) {
+      return res.status(404).json({ message: "Admin not found" });
+    }
+    
+    res.status(200).json(admin);
+  } catch (error) {
+    res.status(500).json({ message: "Server Error", error: error.message });
+  }
+};

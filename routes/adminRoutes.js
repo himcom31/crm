@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { createClient, getAllClients ,updateClient, deleteClient,dashboard} = require('../controllers/adminController');
+const { createClient, getAllClients ,updateClient, deleteClient,dashboard,getAdminProfile} = require('../controllers/adminController');
 const { addProduct } = require('../controllers/productController');
 const { protect, admin } = require('../middleware/authMiddleware');
 const { createAgent, getAllAgents, deleteAgentByEmail ,updateAgent} = require("../controllers/agentController");
@@ -42,5 +42,7 @@ router.get('/sales/history', protect, admin, getSalesHistory);
 
 
 router.get("/dashboard-stats",dashboard)
+
+router.get("/profile",protect,getAdminProfile)
 
 module.exports = router;
